@@ -26,4 +26,12 @@ if [ "$changed" = "1" ]; then
     chown -R node:node /paperclip
 fi
 
+# Ensure adapter-plugins.json exists for Hermes external adapter
+if [ ! -f /paperclip/adapter-plugins.json ]; then
+    mkdir -p /paperclip
+    echo '{"plugins":{"hermes_local":{"package":"@henkey/hermes-paperclip-adapter","type":"hermes_local"}}}' > /paperclip/adapter-plugins.json
+    chown node:node /paperclip/adapter-plugins.json
+    echo "Created adapter-plugins.json"
+fi
+
 exec gosu node "$@"
