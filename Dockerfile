@@ -51,6 +51,7 @@ ARG USER_GID=1000
 WORKDIR /app
 COPY --chown=node:node --from=build /app /app
 COPY --from=base /root/.hermes /root/.hermes
+COPY --from=base /root/.local /root/.local
 RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai @henkey/hermes-paperclip-adapter \
   && apt-get update \
   && apt-get install -y --no-install-recommends openssh-client jq \
