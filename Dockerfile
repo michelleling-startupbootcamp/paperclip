@@ -5,7 +5,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates gosu curl gh git wget ripgrep \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable
-ENV PATH="/root/.local/bin:/root/.hermes/bin:$PATH"
+ENV PATH="/root/.local/bin:/root/.hermes/hermes-agent/venv/bin:/root/.hermes/bin:$PATH"
 RUN curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup
 RUN hermes --version && ln -sf $(which hermes) /usr/local/bin/hermes || (find /root -name "hermes" -type f 2>/dev/null | head -1 | xargs -I{} ln -sf {} /usr/local/bin/hermes)
 RUN chmod 755 /root && chmod -R a+rX /root/.local /root/.hermes
