@@ -1,0 +1,18 @@
+[railway]
+schemaVersion = 2
+projectId = ""
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+numReplicas = 1
+sleepApplication = false
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[environment]
+NODE_ENV = "production"
+PORT = "3100"
+HOST = "0.0.0.0"
