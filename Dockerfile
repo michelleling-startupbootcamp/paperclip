@@ -7,7 +7,7 @@ RUN apt-get update \
   && corepack enable
 ENV PATH="/root/.local/bin:/root/.hermes/bin:$PATH"
 RUN curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup
-RUN find /root -name "hermes" -type f 2>/dev/null | head -1 | xargs -I{} ln -sf {} /usr/local/bin/hermes
+RUN hermes --version && ln -sf $(which hermes) /usr/local/bin/hermes || (find /root -name "hermes" -type f 2>/dev/null | head -1 | xargs -I{} ln -sf {} /usr/local/bin/hermes)
 
 # Modify the existing node user/group to have the specified UID/GID to match host user
 RUN usermod -u $USER_UID --non-unique node \
