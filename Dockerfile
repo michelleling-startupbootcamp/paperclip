@@ -2,17 +2,16 @@ FROM node:lts-trixie-slim AS base
 ARG USER_UID=1000
 ARG USER_GID=1000
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates gosu curl gh git wget ripgrep \
+  && apt-get install -y --no-install-recommends ca-certificates gosu curl gh git wget ripgrep python3 python3-venv \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable
 ENV PATH="/root/.local/bin:/root/.hermes/hermes-agent/venv/bin:/root/.hermes/bin:$PATH"
 RUN curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup
 RUN HERMES_BIN=$(which hermes) && \
-  printf '#!/bin/sh\nexec /root/.hermes/hermes-agent/venv/bin/python3 %s "$@"\n' "$HERMES_BIN" \
+  VENV_SITE=$(ls -d /root/.hermes/hermes-agent/venv/lib/python*/site-packages 2>/dev/null | head -1) && \
+  printf '#!/bin/sh\nexport PYTHONPATH="%s${PYTHONPATH:+:$PYTHONPATH}"\nexec /usr/bin/python3 %s "$@"\n' "$VENV_SITE" "$HERMES_BIN" \
   > /usr/local/bin/hermes && \
-  chmod 755 /usr/local/bin/hermes && \
-  ln -sf /root/.hermes/hermes-agent/venv/bin/python3 /usr/local/bin/python3 && \
-  chmod 755 /usr/local/bin/python3
+  chmod 755 /usr/local/bin/hermes
 RUN chmod 755 /root && chmod -R a+rx /root/.local /root/.hermes \
   && hermes config set model.provider nous \
   && hermes config set model.default hermes-3-70b
@@ -90,5 +89,6 @@ EXPOSE 3100
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
+
 
 
