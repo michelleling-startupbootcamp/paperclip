@@ -7,14 +7,22 @@ RUN apt-get update \
   && corepack enable
 ENV PATH="/root/.local/bin:/root/.hermes/hermes-agent/venv/bin:/root/.hermes/bin:$PATH"
 RUN curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup
-RUN HERMES_BIN=$(which hermes) && \
-  VENV_SITE=$(ls -d /root/.hermes/hermes-agent/venv/lib/python*/site-packages 2>/dev/null | head -1) && \
-  printf '#!/bin/sh\nexport PYTHONPATH="%s${PYTHONPATH:+:$PYTHONPATH}"\nexec /usr/bin/python3 %s "$@"\n' "$VENV_SITE" "$HERMES_BIN" \
+
+# Railway blocks /root/ access for non-root users (even with chmod). Copy hermes to /opt/ so node user can read it.
+RUN mkdir -p /opt/hermes /opt/hermes-home && \
+  cp /root/.local/bin/hermes /opt/hermes/hermes-entry && \
+  cp -r /root/.hermes/hermes-agent/venv/lib/python*/site-packages /opt/hermes/site-packages && \
+  chmod -R a+rX /opt/hermes
+
+# Wrapper points at /opt/ paths and sets HOME so hermes config lives in a shared, node-readable location
+RUN printf '#!/bin/sh\nexport HOME=/opt/hermes-home\nexport PYTHONPATH="/opt/hermes/site-packages${PYTHONPATH:+:$PYTHONPATH}"\nexec /usr/bin/python3 /opt/hermes/hermes-entry "$@"\n' \
   > /usr/local/bin/hermes && \
   chmod 755 /usr/local/bin/hermes
-RUN chmod 755 /root && chmod -R a+rx /root/.local /root/.hermes \
-  && hermes config set model.provider nous \
-  && hermes config set model.default hermes-3-70b
+
+# Invoke config via the wrapper explicitly so config gets written to /opt/hermes-home
+RUN /usr/local/bin/hermes config set model.provider nous \
+  && /usr/local/bin/hermes config set model.default hermes-3-70b \
+  && chmod -R a+rwX /opt/hermes-home
 
 # Modify the existing node user/group to have the specified UID/GID to match host user
 RUN usermod -u $USER_UID --non-unique node \
@@ -69,7 +77,7 @@ RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/cod
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Build: 2026-04-21 Hermes agent + adapter
+# Build: 2026-04-23 Hermes relocated to /opt/ for Railway compatibility
 ENV NODE_ENV=production \
   HOME=/paperclip \
   HOST=0.0.0.0 \
@@ -89,6 +97,3 @@ EXPOSE 3100
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
-
-
-
