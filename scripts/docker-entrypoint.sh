@@ -36,13 +36,13 @@ fi
 
 # One-time Nous Portal API-key credential setup.
 # Nous default auth is oauth_device_code (interactive), but the hermes CLI also
-# supports forcing an api-key credential via `--auth-type api-key`.
+# supports forcing an api-key credential via `--type api-key`.
 # We run this ONCE per container volume; marker file prevents re-running.
 NOUS_MARKER=/opt/hermes-root/.hermes/.nous-auth-done
 if [ -n "$NOUS_API_KEY" ] && [ ! -f "$NOUS_MARKER" ]; then
     echo "Provisioning Nous Portal API-key credential..."
     if /usr/local/bin/hermes auth add nous \
-        --auth-type api-key \
+        --type api-key \
         --api-key "$NOUS_API_KEY" \
         --label "paperclip-default"; then
         touch "$NOUS_MARKER"
