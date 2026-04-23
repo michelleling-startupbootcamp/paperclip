@@ -1,32 +1,25 @@
 #!/bin/sh
 set -e
 
-# Capture runtime UID/GID from environment variables, defaulting to 1000
 PUID=${USER_UID:-1000}
 PGID=${USER_GID:-1000}
 
-# Adjust the node user's UID/GID if they differ from the runtime request
-# and fix volume ownership only when a remap is needed
 changed=0
-
 if [ "$(id -u node)" -ne "$PUID" ]; then
     echo "Updating node UID to $PUID"
     usermod -o -u "$PUID" node
     changed=1
 fi
-
 if [ "$(id -g node)" -ne "$PGID" ]; then
     echo "Updating node GID to $PGID"
     groupmod -o -g "$PGID" node
     usermod -g "$PGID" node
     changed=1
 fi
-
 if [ "$changed" = "1" ]; then
     chown -R node:node /paperclip
 fi
 
-# Ensure adapter-plugins.json exists for Hermes external adapter
 if [ ! -f /paperclip/adapter-plugins.json ]; then
     mkdir -p /paperclip
     echo '{"plugins":{"hermes_local":{"package":"@henkey/hermes-paperclip-adapter","type":"hermes_local"}}}' > /paperclip/adapter-plugins.json
@@ -34,25 +27,17 @@ if [ ! -f /paperclip/adapter-plugins.json ]; then
     echo "Created adapter-plugins.json"
 fi
 
-# One-time Nous Portal API-key credential setup.
-# Nous default auth is oauth_device_code (interactive), but the hermes CLI also
-# supports forcing an api-key credential via `--type api-key`.
-# We run this ONCE per container volume; marker file prevents re-running.
-NOUS_MARKER=/opt/hermes-root/.hermes/.nous-auth-done
-if [ -n "$NOUS_API_KEY" ] && [ ! -f "$NOUS_MARKER" ]; then
-    echo "Provisioning Nous Portal API-key credential..."
-    if /usr/local/bin/hermes auth add nous \
-        --type api-key \
-        --api-key "$NOUS_API_KEY" \
-        --label "paperclip-default"; then
-        touch "$NOUS_MARKER"
-        # Make hermes config/credentials readable+writable by node user so the
-        # adapter subprocess (running as node) can use and refresh them.
-        chmod -R a+rwX /opt/hermes-root/.hermes 2>/dev/null || true
-        echo "Nous credential provisioned."
-    else
-        echo "WARNING: Nous credential provisioning failed; hermes tasks will fail until fixed."
-    fi
+# Configure Hermes to call Nous inference directly as a custom OpenAI-compatible
+# provider. This avoids the Nous Portal OAuth session requirement entirely.
+# TOOL_GATEWAY_USER_TOKEN (set in Railway env) handles managed tool auth.
+if [ -n "$NOUS_API_KEY" ]; then
+    echo "Configuring Hermes: custom provider -> Nous inference API..."
+    /usr/local/bin/hermes config set model.provider custom
+    /usr/local/bin/hermes config set model.base_url https://inference-api.nousresearch.com/v1
+    /usr/local/bin/hermes config set model.api_key "$NOUS_API_KEY"
+    /usr/local/bin/hermes config set model.default hermes-3-70b
+    chmod -R a+rwX /opt/hermes-root/.hermes 2>/dev/null || true
+    echo "Hermes provider configured."
 fi
 
 exec gosu node "$@"
