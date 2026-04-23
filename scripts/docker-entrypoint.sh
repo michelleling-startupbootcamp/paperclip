@@ -34,24 +34,23 @@ if [ ! -f /paperclip/adapter-plugins.json ]; then
     echo "Created adapter-plugins.json"
 fi
 
-# One-time Nous Portal API-key credential setup.
-# Nous default auth is oauth_device_code (interactive), but the hermes CLI also
-# supports forcing an api-key credential via `--type api-key`.
-# We run this ONCE per container volume; marker file prevents re-running.
-NOUS_MARKER=/opt/hermes-root/.hermes/.nous-auth-done
+# Configure hermes to use the Nous inference API as a custom OpenAI-compatible
+# endpoint. The hermes "nous" provider requires OAuth (device code flow), but
+# the Nous inference API (inference-api.nousresearch.com/v1) is OpenAI-compatible
+# and accepts a plain API key. We use provider=custom to bypass the OAuth check.
+NOUS_MARKER=/opt/hermes-root/.hermes/.nous-config-done
 if [ -n "$NOUS_API_KEY" ] && [ ! -f "$NOUS_MARKER" ]; then
-    echo "Provisioning Nous Portal API-key credential..."
-    if /usr/local/bin/hermes auth add nous \
-        --type api-key \
-        --api-key "$NOUS_API_KEY" \
-        --label "paperclip-default"; then
+    echo "Configuring Hermes for Nous inference API (custom OpenAI-compatible endpoint)..."
+    export HOME=/opt/hermes-root
+    if /usr/local/bin/hermes config set model.provider custom \
+    && /usr/local/bin/hermes config set model.base_url https://inference-api.nousresearch.com/v1 \
+    && /usr/local/bin/hermes config set model.api_key "$NOUS_API_KEY" \
+    && /usr/local/bin/hermes config set model.default hermes-3-70b; then
         touch "$NOUS_MARKER"
-        # Make hermes config/credentials readable+writable by node user so the
-        # adapter subprocess (running as node) can use and refresh them.
         chmod -R a+rwX /opt/hermes-root/.hermes 2>/dev/null || true
-        echo "Nous credential provisioned."
+        echo "Hermes configured for Nous inference API."
     else
-        echo "WARNING: Nous credential provisioning failed; hermes tasks will fail until fixed."
+        echo "WARNING: Hermes configuration failed; hermes tasks may fail."
     fi
 fi
 

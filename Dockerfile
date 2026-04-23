@@ -18,9 +18,7 @@ RUN printf '#!/bin/sh\nexport HOME=/opt/hermes-root\nexec /opt/hermes-root/.loca
   chmod 755 /usr/local/bin/hermes
 
 # Bake model config (written into /opt/hermes-root/.hermes/ via the wrapper's HOME override)
-RUN /usr/local/bin/hermes config set model.provider nous \
-  && /usr/local/bin/hermes config set model.default hermes-3-70b \
-  && chmod -R a+rwX /opt/hermes-root/.hermes
+RUN chmod -R a+rwX /opt/hermes-root/.hermes
 
 # Modify the existing node user/group to have the specified UID/GID to match host user
 RUN usermod -u $USER_UID --non-unique node \
