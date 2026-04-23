@@ -5,24 +5,22 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates gosu curl gh git wget ripgrep python3 python3-venv \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable
-ENV PATH="/root/.local/bin:/root/.hermes/hermes-agent/venv/bin:/root/.hermes/bin:$PATH"
-RUN curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup
 
-# Railway blocks /root/ access for non-root users (even with chmod). Copy hermes to /opt/ so node user can read it.
-RUN mkdir -p /opt/hermes /opt/hermes-home && \
-  cp /root/.local/bin/hermes /opt/hermes/hermes-entry && \
-  cp -r /root/.hermes/hermes-agent/venv/lib/python*/site-packages /opt/hermes/site-packages && \
-  chmod -R a+rX /opt/hermes
+# Install hermes into /opt/hermes-root so the node user (Railway blocks /root/ for non-root) can access it.
+# The installer respects $HOME and puts the whole install tree under $HOME.
+RUN mkdir -p /opt/hermes-root && \
+  HOME=/opt/hermes-root sh -c 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup' && \
+  chmod -R a+rX /opt/hermes-root
 
-# Wrapper points at /opt/ paths and sets HOME so hermes config lives in a shared, node-readable location
-RUN printf '#!/bin/sh\nexport HOME=/opt/hermes-home\nexport PYTHONPATH="/opt/hermes/site-packages${PYTHONPATH:+:$PYTHONPATH}"\nexec /usr/bin/python3 /opt/hermes/hermes-entry "$@"\n' \
+# Wrapper sets HOME so hermes finds its config at /opt/hermes-root/.hermes/ at runtime
+RUN printf '#!/bin/sh\nexport HOME=/opt/hermes-root\nexec /opt/hermes-root/.local/bin/hermes "$@"\n' \
   > /usr/local/bin/hermes && \
   chmod 755 /usr/local/bin/hermes
 
-# Invoke config via the wrapper explicitly so config gets written to /opt/hermes-home
+# Bake model config (written into /opt/hermes-root/.hermes/ via the wrapper's HOME override)
 RUN /usr/local/bin/hermes config set model.provider nous \
   && /usr/local/bin/hermes config set model.default hermes-3-70b \
-  && chmod -R a+rwX /opt/hermes-home
+  && chmod -R a+rwX /opt/hermes-root/.hermes
 
 # Modify the existing node user/group to have the specified UID/GID to match host user
 RUN usermod -u $USER_UID --non-unique node \
@@ -65,8 +63,6 @@ ARG USER_UID=1000
 ARG USER_GID=1000
 WORKDIR /app
 COPY --chown=node:node --from=build /app /app
-COPY --from=base /root/.hermes /root/.hermes
-COPY --from=base /root/.local /root/.local
 RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai @henkey/hermes-paperclip-adapter \
   && apt-get update \
   && apt-get install -y --no-install-recommends openssh-client jq \
@@ -77,7 +73,7 @@ RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/cod
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Build: 2026-04-23 Hermes relocated to /opt/ for Railway compatibility
+# Build: 2026-04-23 Hermes installed into /opt/hermes-root for Railway node-user access
 ENV NODE_ENV=production \
   HOME=/paperclip \
   HOST=0.0.0.0 \
