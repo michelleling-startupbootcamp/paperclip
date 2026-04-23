@@ -8,7 +8,7 @@ RUN apt-get update \
 ENV PATH="/root/.local/bin:/root/.hermes/hermes-agent/venv/bin:/root/.hermes/bin:$PATH"
 RUN curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup
 RUN hermes --version && ln -sf $(which hermes) /usr/local/bin/hermes || (find /root -name "hermes" -type f 2>/dev/null | head -1 | xargs -I{} ln -sf {} /usr/local/bin/hermes)
-RUN chmod 755 /root && chmod -R a+rX /root/.local /root/.hermes \
+RUN chmod 755 /root && chmod -R a+rx /root/.local /root/.hermes \
   && hermes config set model.provider nous \
   && hermes config set model.default hermes-3-70b
 
@@ -85,3 +85,4 @@ EXPOSE 3100
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
+
